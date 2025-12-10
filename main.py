@@ -11,5 +11,5 @@ foldername = process_audio_split(filename)
 
 load_whisper("small")
 run_analysis(foldername, prompt="以下是普通话的句子。")
-output_path = f"outputs/{foldername}.txt"
+output_path = f"outputs/{foldername}.md"
 print("转换完成！", output_path)

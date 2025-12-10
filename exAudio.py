@@ -24,16 +24,38 @@ def convert_flv_to_mp3(name, target_name=None, folder='bilibili_video'):
         # 如果不存在，尝试在文件夹下查找视频文件
         dir_path = f'{folder}/{name}'
         if os.path.isdir(dir_path):
-            for file in os.listdir(dir_path):
-                if file.endswith(('.mp4', '.flv', '.mkv', '.avi')):
-                    input_path = os.path.join(dir_path, file)
+            # 按格式优先级选择，避免旧的损坏 webm 被选中
+            priority_exts = ['.mp4', '.m4v', '.mov', '.mkv', '.flv', '.webm', '.avi']
+            found = None
+            for ext in priority_exts:
+                for file in os.listdir(dir_path):
+                    if file.endswith(ext):
+                        found = os.path.join(dir_path, file)
+                        break
+                if found:
+                    input_path = found
                     break
-            else:
+            if not found:
                 raise FileNotFoundError(f"目录下未找到视频文件: {dir_path}")
         else:
             raise FileNotFoundError(f"视频文件不存在: {input_path}")
     if not check_video_integrity(input_path):
-        raise ValueError(f"视频文件损坏: {input_path}")
+        # 尝试重新封装为 mp4，再校验一次
+        remux_path = os.path.splitext(input_path)[0] + "_remux.mp4"
+        try:
+            subprocess.run(
+                ['ffmpeg', '-y', '-i', input_path, '-c', 'copy', remux_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True
+            )
+            if check_video_integrity(remux_path):
+                input_path = remux_path
+            else:
+                raise ValueError(f"视频文件损坏: {input_path}")
+        except Exception:
+            raise ValueError(f"视频文件损坏: {input_path}")
     # 提取视频中的音频并保存为 MP3 到 audio/conv 目录
     clip = VideoFileClip(input_path)
     audio = clip.audio
@@ -63,4 +85,3 @@ def process_audio_split(name):
         raise FileNotFoundError(f"转换后的音频文件不存在: {conv_path}")
     split_mp3(conv_path, folder_name)
     return folder_name
-
