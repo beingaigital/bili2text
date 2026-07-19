@@ -59,31 +59,48 @@ def download_video(link_or_bv):
         # 使用%(title)s.%(ext)s作为文件名模板，但会被output_dir覆盖路径部分
         output_template = os.path.join(output_dir, "%(title)s.%(ext)s")
         extra_headers = []
+        extractor_args = []
+        
         if source == "bilibili":
             extra_headers = ["--referer", "https://www.bilibili.com", "--add-header", "User-Agent: Mozilla/5.0"]
+        elif source == "youtube":
+            # 添加 YouTube headers 以避免 403 错误
+            extra_headers = [
+                "--add-header", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "--add-header", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "--add-header", "Accept-Language: en-US,en;q=0.5",
+                "--referer", "https://www.youtube.com/"
+            ]
+            # 使用 android 客户端避免 SABR 流问题和 403 错误
+            # android 客户端通常更稳定，不会触发 YouTube 的 SABR 流限制
+            extractor_args = ["--extractor-args", "youtube:player_client=android"]
 
         format_args = []
         if source == "youtube":
-            # 优先下载 mp4 + m4a，避免 webm/opus 解析问题
-            format_args = ["-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best"]
+            # 使用更灵活的格式选择，避免触发 SABR 流的格式
+            # 优先选择 android 客户端支持的格式，避免 web 客户端的 SABR 流问题
+            format_args = ["-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"]
 
+        # 使用 bytes 模式捕获输出后手动解码，正确处理包含非 ASCII 字符（如中文标题）的输出
         result = subprocess.run(
             [
                 "yt-dlp",
                 "-o", output_template,
                 "--no-playlist",
+                *extractor_args,
                 *format_args,
                 *extra_headers,
                 video_url,
             ],
-            capture_output=True,
-            text=True
+            capture_output=True
         )
-        
+        stdout_text = result.stdout.decode('utf-8', errors='replace') if result.stdout else ""
+        stderr_text = result.stderr.decode('utf-8', errors='replace') if result.stderr else ""
+
         if result.returncode == 0:
             # 打印下载信息
-            if result.stdout:
-                print(result.stdout)
+            if stdout_text:
+                print(stdout_text)
             
             # 检查是否真的下载了视频文件
             video_files = glob.glob(os.path.join(output_dir, "*.mp4"))
@@ -108,7 +125,7 @@ def download_video(link_or_bv):
             else:
                 print(f"下载完成但未找到视频文件: {output_dir}")
         else:
-            print("yt-dlp下载失败:", result.stderr or result.stdout)
+            print("yt-dlp下载失败:", stderr_text or stdout_text)
     except FileNotFoundError:
         print("错误: 未找到yt-dlp命令。请先安装yt-dlp: pip install yt-dlp")
     except Exception as e:
