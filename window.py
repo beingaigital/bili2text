@@ -198,7 +198,7 @@ def refine_text_with_ai(folder_name):
     global speech_to_text, stop_event
     try:
         print("=" * 10)
-        print("正在使用Kimi进行AI润色（可能耗时较长）...")
+        print("正在使用MiniMax进行AI润色（可能耗时较长）...")
         if stop_event.is_set():
             print("任务已停止")
             return
@@ -231,7 +231,7 @@ def refine_text_with_ai(folder_name):
         else:
             print("=" * 10)
             print(f"AI润色失败: {e}")
-            print("请检查.env文件中的KIMI_API_KEY配置是否正确。")
+            print("请检查.env文件中的MINIMAX_APIKEY配置是否正确。")
     except Exception as e:
         if stop_event.is_set():
             print("任务已停止")

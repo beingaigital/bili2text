@@ -1,5 +1,6 @@
 import whisper
 import os
+import re
 import ssl
 import certifi
 import sys
@@ -25,9 +26,9 @@ os.environ['TQDM_DISABLE'] = '1'
 whisper_model = None
 USE_OPENAI_API = bool(os.getenv("OPENAI_API_KEY")) and str(os.getenv("USE_OPENAI_WHISPER", "0")).lower() not in ("0", "false", "no")
 OPENAI_MODEL = os.getenv("OPENAI_WHISPER_MODEL", "whisper-1")
-KIMI_API_KEY = os.getenv("KIMI_API_KEY")
-KIMI_API_BASE = os.getenv("KIMI_API_BASE", "https://api.moonshot.cn/v1")
-KIMI_MODEL = os.getenv("KIMI_MODEL", "moonshot-v1-32k")  # 默认使用 k1 32k 模型，侧重稳健校对
+MINIMAX_API_KEY = os.getenv("MINIMAX_APIKEY") or os.getenv("MINIMAX_API_KEY")
+MINIMAX_API_BASE = os.getenv("MINIMAX_API_BASE", "https://api.minimaxi.com/v1")
+MINIMAX_MODEL = os.getenv("MINIMAX_MODEL", "MiniMax-M3")
 
 # 停止事件（由外部设置）
 stop_event = None
@@ -37,16 +38,16 @@ def set_stop_event(event):
     global stop_event
     stop_event = event
 
-# 初始化 Kimi OpenAI 客户端
-kimi_client = None
-if KIMI_API_KEY:
+# 初始化 MiniMax OpenAI 兼容客户端
+minimax_client = None
+if MINIMAX_API_KEY:
     try:
-        kimi_client = OpenAI(
-            api_key=KIMI_API_KEY,
-            base_url=KIMI_API_BASE,
+        minimax_client = OpenAI(
+            api_key=MINIMAX_API_KEY,
+            base_url=MINIMAX_API_BASE,
         )
     except Exception as e:
-        print(f"初始化 Kimi 客户端失败: {e}")
+        print(f"初始化 MiniMax 客户端失败: {e}")
 
 def is_cuda_available():
     return whisper.torch.cuda.is_available()
@@ -160,11 +161,11 @@ def refine_text(filename, prompt="以下是普通话的句子。"):
     返回:
         润色后的文本
     """
-    if not KIMI_API_KEY:
-        raise RuntimeError("未配置 KIMI_API_KEY，无法进行AI润色。请在.env文件中配置。")
-    
-    if not kimi_client:
-        raise RuntimeError("Kimi 客户端未初始化，请检查 KIMI_API_KEY 配置是否正确。")
+    if not MINIMAX_API_KEY:
+        raise RuntimeError("未配置 MINIMAX_APIKEY，无法进行AI润色。请在.env文件中配置。")
+
+    if not minimax_client:
+        raise RuntimeError("MiniMax 客户端未初始化，请检查 MINIMAX_APIKEY 配置是否正确。")
     
     # 读取原始转写文档
     raw_file_path = f"outputs/{filename}.md"
@@ -183,8 +184,8 @@ def refine_text(filename, prompt="以下是普通话的句子。"):
             print("任务已停止")
             raise KeyboardInterrupt("用户请求停止任务")
         
-        print("正在调用 Kimi 进行润色...")
-        refined_text = _refine_with_kimi(raw_text, prompt)
+        print("正在调用 MiniMax 进行润色...")
+        refined_text = _refine_with_minimax(raw_text, prompt)
         
         # 再次检查是否请求停止
         if stop_event and stop_event.is_set():
@@ -203,7 +204,7 @@ def refine_text(filename, prompt="以下是普通话的句子。"):
         
         return refined_text
     except Exception as e:
-        print(f"Kimi 润色失败: {e}")
+        print(f"MiniMax 润色失败: {e}")
         raise
 
 
@@ -238,7 +239,9 @@ def _estimate_tokens(text: str) -> int:
 def _get_model_max_tokens(model_name: str) -> int:
     """根据模型名称获取最大 token 限制。"""
     model_lower = model_name.lower()
-    if "k2" in model_lower or "256k" in model_lower:
+    if "minimax" in model_lower:
+        return 200000  # MiniMax M 系列支持约 200k 上下文
+    elif "k2" in model_lower or "256k" in model_lower:
         return 256000  # k2 thinking 模型支持 256k
     elif "128k" in model_lower:
         return 128000
@@ -247,7 +250,7 @@ def _get_model_max_tokens(model_name: str) -> int:
     elif "8k" in model_lower:
         return 8000
     else:
-        # 默认使用 256k（k2 模型）
+        # 默认按长上下文模型保守处理
         return 256000
 
 
@@ -307,10 +310,10 @@ def _split_text_into_chunks(text: str, max_tokens_per_chunk: int) -> list:
     return chunks
 
 
-def _refine_with_kimi(text: str, prompt: str) -> str:
-    """调用 Kimi (Moonshot) 进行润色/纠错。支持长文本自动分块处理。"""
+def _refine_with_minimax(text: str, prompt: str) -> str:
+    """调用 MiniMax 进行润色/纠错。支持长文本自动分块处理。"""
     # 获取模型的最大 token 限制
-    max_tokens = _get_model_max_tokens(KIMI_MODEL)
+    max_tokens = _get_model_max_tokens(MINIMAX_MODEL)
     # 估算 prompt 和 system message 的 token（约 200-300 tokens）
     prompt_tokens = _estimate_tokens(prompt) + 300
     # 根据模型大小动态调整每块的最大 token 数（为 prompt 和响应预留空间）
@@ -328,7 +331,7 @@ def _refine_with_kimi(text: str, prompt: str) -> str:
     
     print(f"文档总长度约 {total_tokens} tokens，模型限制 {max_tokens} tokens")
     
-    # 对于 k2 模型（256k），大多数文档都可以一次性处理
+    # 对于长上下文模型，大多数文档都可以一次性处理
     if total_tokens + prompt_tokens <= max_tokens:
         if total_tokens <= max_text_tokens_per_chunk:
             print("文档长度在模型限制内，直接处理...")
@@ -367,14 +370,14 @@ def _refine_with_kimi(text: str, prompt: str) -> str:
 
 
 def _refine_single_chunk(text: str, prompt: str) -> str:
-    """对单个文本块调用 Kimi API 进行润色。使用 OpenAI 兼容客户端。"""
-    if not kimi_client:
-        raise RuntimeError("Kimi 客户端未初始化，请检查 KIMI_API_KEY 配置。")
-    
+    """对单个文本块调用 MiniMax API 进行润色。使用 OpenAI 兼容客户端。"""
+    if not minimax_client:
+        raise RuntimeError("MiniMax 客户端未初始化，请检查 MINIMAX_APIKEY 配置。")
+
     try:
-        # 使用 OpenAI 兼容客户端调用 Kimi API
-        response = kimi_client.chat.completions.create(
-            model=KIMI_MODEL,
+        # 使用 OpenAI 兼容客户端调用 MiniMax API
+        response = minimax_client.chat.completions.create(
+            model=MINIMAX_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -397,15 +400,18 @@ def _refine_single_chunk(text: str, prompt: str) -> str:
                 },
             ],
             temperature=0.15,  # 降低随机性，避免过度创作
-            max_tokens=32000,  # 最大输出 tokens（k2 模型支持更大，但这里设置一个合理的上限）
+            max_tokens=32000,  # 最大输出 tokens，避免润色结果过长
         )
-        
+
         # 获取返回的内容
         if response.choices and len(response.choices) > 0:
-            return response.choices[0].message.content
+            content = response.choices[0].message.content or ""
+            # MiniMax M 系列为推理模型，剥离返回内容中的 <think>...</think> 思考过程
+            content = re.sub(r"<think>.*?</think>\s*", "", content, flags=re.DOTALL)
+            return content
         else:
-            raise RuntimeError("Kimi API 返回空结果")
-            
+            raise RuntimeError("MiniMax API 返回空结果")
+
     except Exception as e:
-        raise RuntimeError(f"Kimi API 调用失败: {str(e)}")
+        raise RuntimeError(f"MiniMax API 调用失败: {str(e)}")
     

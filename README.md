@@ -29,7 +29,7 @@ bili2text 是一个用于将视频（Bilibili、YouTube等）转换为文本的�
 - 🎵**提取音频**：从下载的视频中提取音频。
 - 💬**音频分割**：将音频分割成小段，以便于进行高效的语音转文字处理。
 - 🤖**语音转文字**：使用 OpenAI 的 whisper 模型将音频转换为文本，生成原始转写文档。
-- ✨**AI润色**：使用 Kimi (Moonshot) API 对转写结果进行智能润色，修正错别字、优化断句和表达，生成更精炼的文档。
+- ✨**AI润色**：使用 MiniMax API 对转写结果进行智能润色，修正错别字、优化断句和表达，生成更精炼的文档。
 
 ## 使用方法 📘
 1. **克隆仓库**：
@@ -45,9 +45,10 @@ bili2text 是一个用于将视频（Bilibili、YouTube等）转换为文本的�
    ```
 
 3. **配置环境变量**（可选，用于AI润色功能）：
-   在项目根目录创建 `.env` 文件，配置 Kimi API Key：
+   在项目根目录创建 `.env` 文件，配置 MiniMax API Key：
    ```bash
-   KIMI_API_KEY=your_kimi_api_key_here
+   MINIMAX_APIKEY=your_minimax_api_key_here
+   MINIMAX_MODEL=MiniMax-M3
    ```
    
    如果不配置，将只能生成原始转写文档，无法使用AI润色功能。
@@ -62,7 +63,7 @@ bili2text 是一个用于将视频（Bilibili、YouTube等）转换为文本的�
 
 5. **使用UI界面**：
    ```bash
-   python window.py
+   python3 window.py
    ```
 
    在弹出的窗口中：
@@ -89,7 +90,7 @@ print("转换完成！", output_path)
 - [Python](https://www.python.org/) 主要编程语言，负责实现程序逻辑功能
 - [Whisper](https://github.com/openai/whisper) 语音转文字模型
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) 视频下载工具，支持 Bilibili、YouTube 等多种平台
-- [Kimi (Moonshot)](https://platform.moonshot.cn/) AI润色服务，提供智能文本润色功能
+- [MiniMax](https://platform.minimaxi.com/) AI润色服务，提供智能文本润色功能
 - [Tkiner](https://docs.python.org/3/library/tkinter.html) UI界面展示相关工具
 - [TTKbootstrap](https://ttkbootstrap.readthedocs.io/en/latest/zh/) UI界面美化库
 
@@ -108,7 +109,7 @@ print("转换完成！", output_path)
 - ✅ 生成 Markdown 格式的原始转写文档
 
 ### AI润色
-- ✅ 使用 Kimi (Moonshot) API 进行智能润色
+- ✅ 使用 MiniMax API 进行智能润色
 - ✅ 修正错别字、优化断句和表达
 - ✅ 保持原意的前提下提升文本质量
 - ✅ 润色文档独立保存，不覆盖原始文档
@@ -154,4 +155,3 @@ TRC20链！谢谢大家！
 ## 使用须知 🖥️
 
 **用户在使用 bili2text 工具时，必须遵守用户所在地区的相关版权法律和规定。请确保您有权利下载和转换的视频内容，尊重创作者的劳动成果。**
-
