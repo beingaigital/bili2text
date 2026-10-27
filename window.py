@@ -152,6 +152,8 @@ def on_show_result_click():
 def on_stop_click():
     """停止按钮点击处理"""
     global stop_event
+    if open_popup("下载可能已完成，停止后将跳过后续的转写/润色步骤，确定要停止吗？", title="确认停止") == "cancelled":
+        return
     print("=" * 10)
     print("正在停止任务...")
     stop_event.set()

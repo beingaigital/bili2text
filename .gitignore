@@ -122,6 +122,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -181,3 +183,26 @@ assets/
 
 # Executable files
 *.exe
+
+# Downloaded media, partial downloads, and local model weights
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.aac
+*.ogg
+*.opus
+*.mp4
+*.mkv
+*.flv
+*.webm
+*.mov
+*.part
+*.ytdl
+*.pt
+*.pth
+*.safetensors
+*.gguf
+
+# Local editor and agent settings
+.claude/settings.local.json
